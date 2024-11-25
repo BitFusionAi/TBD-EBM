@@ -1,11 +1,12 @@
 import requests
 import streamlit as st
 
+
 # Function to fetch Tao Price data from the API
 def fetch_tao_data():
     api_url = "https://api.taostats.io/api/price/latest/v1?asset=tao"
     headers = {
-        'Authorization': "oMsSsdmi9ILQpk3Cokql3C0VPsutpKoy4O2y3RrhNn2qOxJcha7E1RbR2LTnI4E0",
+        'Authorization': st.secrets["API_TAO"],
         'accept': 'application/json'
     }
 

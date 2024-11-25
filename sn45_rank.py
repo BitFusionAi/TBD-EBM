@@ -19,7 +19,7 @@ DB_PATH = "data/sn45_rank.db"
 def fetch_sn45_data():
     url = 'https://api.taostats.io/api/metagraph/latest/v1'
     headers = {
-        'Authorization': 'oMsSsdmi9ILQpk3Cokql3C0VPsutpKoy4O2y3RrhNn2qOxJcha7E1RbR2LTnI4E0',
+        'Authorization': st.secrets["API_TAO"],
         'accept': 'application/json'
     }
     params = {
@@ -35,61 +35,7 @@ def fetch_sn45_data():
         st.error(f"Failed to fetch data: {e}")
         return None
 
-# Function to store data in the RAW_SN_45 table
-# def store_raw_sn45_data(data):
-#     conn = sqlite3.connect(DB_PATH)
-#     cursor = conn.cursor()
 
-#     # Create the RAW_SN_45 table if not exists
-#     cursor.execute('''CREATE TABLE IF NOT EXISTS RAW_SN_45 (
-#         netuid INTEGER,
-#         uid INTEGER,
-#         hotkey_ss58 TEXT,
-#         coldkey_ss58 TEXT,
-#         block_number INTEGER,
-#         timestamp TEXT,
-#         trust REAL,
-#         stake REAL,
-#         validator_trust REAL,
-#         incentive REAL,
-#         dividends REAL,
-#         emission REAL,
-#         active BOOLEAN,
-#         validator_permit BOOLEAN,
-#         daily_reward REAL,
-#         registered_at_block INTEGER,
-#         is_immunity_period BOOLEAN,
-#         rank INTEGER
-#     )''')
-
-#     # Insert the data
-#     for record in data:
-#         if not all(key in record for key in ['netuid', 'uid', 'block_number', 'timestamp', 'daily_reward']):
-#             st.warning(f"Skipping malformed record: {record}")
-#             continue
-
-#         # Parse the timestamp
-#         try:
-#             timestamp = parser.isoparse(record["timestamp"]).strftime("%Y %m %d %H %M")
-#         except ValueError as e:
-#             st.warning(f"Failed to parse timestamp: {record['timestamp']} - {e}")
-#             continue
-
-#         cursor.execute('''INSERT INTO RAW_SN_45 (
-#             netuid, uid, hotkey_ss58, coldkey_ss58, block_number, timestamp, trust, stake, 
-#             validator_trust, incentive, dividends, emission, active, validator_permit, 
-#             daily_reward, registered_at_block, is_immunity_period, rank
-#         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (
-#             record["netuid"], record["uid"], record["hotkey"]["ss58"], record["coldkey"]["ss58"],
-#             record["block_number"], timestamp, record.get("trust", 0), record.get("stake", 0),
-#             record.get("validator_trust", 0), record.get("incentive", 0), record.get("dividends", 0),
-#             record.get("emission", 0), record.get("active", False), record.get("validator_permit", False),
-#             record.get("daily_reward", 0), record.get("registered_at_block", 0),
-#             record.get("is_immunity_period", False), record.get("rank", 0)
-#         ))
-
-#     conn.commit()
-#     conn.close()
 
 # Function to store data in the RAW_SN_45 table
 def store_raw_sn45_data(data):

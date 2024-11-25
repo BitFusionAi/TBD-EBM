@@ -1,6 +1,7 @@
 import streamlit as st
 from Metrics.tao_price_metrics import display_tao_metrics
 from sn45_rank import display_sn45_rank
+from sn45_rank_mongo import display_sn45_rank_mongo
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
@@ -19,3 +20,8 @@ display_tao_metrics()
 
 st.header("SN45 Rank Metrics",divider='grey')
 display_sn45_rank()
+
+st.header("SN30 Rank Metrics",divider='grey')
+
+st.header("SN45 Rank Metrics",divider='grey')
+display_sn45_rank_mongo()
