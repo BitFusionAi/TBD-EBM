@@ -111,11 +111,14 @@ def process_and_save_rank_sn45(data):
                 "MIN_NON_IMMUNE_daily_reward": float(group[~group["is_immunity_period"]]["daily_reward"].astype(float).min()) if not group[~group["is_immunity_period"]].empty else None,
                 "UID_152_daily_reward": float(group[group["uid"] == 152]["daily_reward"].values[0]) if not group[group["uid"] == 152].empty else None,
                 "UID_155_daily_reward": float(group[group["uid"] == 155]["daily_reward"].values[0]) if not group[group["uid"] == 155].empty else None,
+                "UID_236_daily_reward": float(group[group["uid"] == 236]["daily_reward"].values[0]) if not group[group["uid"] == 236].empty else None,
                 "MAX_NON_VALI_daily_reward": float(group[group["validator_trust"] == "0"]["daily_reward"].astype(float).max()) if not group[group["validator_trust"] == "0"].empty else None,
                 "COUNT_NON_IMMUNE_daily_reward_less_UID_152": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 152]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 152].empty else 0,
                 "COUNT_NON_IMMUNE_daily_reward_less_UID_155": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 155]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 155].empty else 0,
+                "COUNT_NON_IMMUNE_daily_reward_less_UID_236": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 236]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 236].empty else 0,
                 "COUNT_NON_VALI_daily_reward_greater_UID_152": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 152]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 152].empty else 0,
                 "COUNT_NON_VALI_daily_reward_greater_UID_155": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 155]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 155].empty else 0,
+                "COUNT_NON_VALI_daily_reward_greater_UID_236": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 236]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 236].empty else 0,
             })
         except KeyError as e:
             st.warning(f"Missing data for block {block}, timestamp {timestamp}: {e}")
@@ -138,45 +141,127 @@ def plot_rank_chart():
         df = pd.DataFrame(data)
 
         if not df.empty:
-            # MAX_timestamp is already a datetime object, no need for conversion
+            # Convert MAX_timestamp to datetime if not already
+            df["MAX_timestamp"] = pd.to_datetime(df["MAX_timestamp"])
+
+            # Divide the daily amounts by 1,000,000,000 for scaling
+            df["MIN_daily_reward"] /= 1_000_000_000
+            df["MIN_NON_IMMUNE_daily_reward"] /= 1_000_000_000
+            df["UID_152_daily_reward"] /= 1_000_000_000
+            df["UID_155_daily_reward"] /= 1_000_000_000
+            df["UID_236_daily_reward"] /= 1_000_000_000
+            df["MAX_NON_VALI_daily_reward"] /= 1_000_000_000
+
+            # Rename columns for better display
+            rename_mapping = {
+                "MIN_daily_reward": "Min UID",
+                "MIN_NON_IMMUNE_daily_reward": "Min Non-Immune",
+                "UID_152_daily_reward": "UID 152",
+                "UID_155_daily_reward": "UID 155",
+                "UID_236_daily_reward": "UID 236",
+                "MAX_NON_VALI_daily_reward": "Max UID",
+                "COUNT_NON_IMMUNE_daily_reward_less_UID_152": "Safe 152",
+                "COUNT_NON_VALI_daily_reward_greater_UID_152": "Rank 152",
+                "COUNT_NON_IMMUNE_daily_reward_less_UID_155": "Safe 155",
+                "COUNT_NON_VALI_daily_reward_greater_UID_155": "Rank 155",
+                "COUNT_NON_IMMUNE_daily_reward_less_UID_236": "Safe 236",
+                "COUNT_NON_VALI_daily_reward_greater_UID_236": "Rank 236",
+            }
+
+            df.rename(columns=rename_mapping, inplace=True)
+
             # Melt the data for Altair (long format for multiple lines)
             melted_data = df.melt(
                 id_vars=[
                     "MAX_timestamp",
-                    "COUNT_NON_IMMUNE_daily_reward_less_UID_152",
-                    "COUNT_NON_VALI_daily_reward_greater_UID_152",
-                    "COUNT_NON_IMMUNE_daily_reward_less_UID_155",
-                    "COUNT_NON_VALI_daily_reward_greater_UID_155"
+                    "Safe 152",
+                    "Rank 152",
+                    "Safe 155",
+                    "Rank 155",
+                    "Safe 236",
+                    "Rank 236"
                 ],
                 value_vars=[
-                    "MIN_daily_reward",
-                    "MIN_NON_IMMUNE_daily_reward",
-                    "UID_152_daily_reward",
-                    "UID_155_daily_reward",
-                    "MAX_NON_VALI_daily_reward"
+                    "Min UID",
+                    "Min Non-Immune",
+                    "UID 152",
+                    "UID 155",
+                    "UID 236",
+                    "Max UID"
                 ],
                 var_name="Metric",
                 value_name="Value"
             )
 
+            # Define custom colors for each metric
+            custom_colors = {
+                "Min UID": "#ff7f0e",  # Orange
+                "Min Non-Immune": "#d62728",  # Red
+                "UID 152": "#228B22",  # Green
+                "UID 155": "#228B22",  # Green
+                "UID 236": "#228B22",  # Green
+                "Max UID": "#1f77b4",  # Blue
+            }
+
             # Base line chart for all metrics
             base_chart = alt.Chart(melted_data).mark_line(point=True).encode(
                 x=alt.X("MAX_timestamp:T", title="Timestamp"),
                 y=alt.Y("Value:Q", title="Rewards"),
-                color="Metric:N",
-                tooltip=[
-                    alt.Tooltip("MAX_timestamp:T", title="Timestamp (HH:MM)"),
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("COUNT_NON_IMMUNE_daily_reward_less_UID_152:Q", title="COUNT NON IMMUNE < UID_152"),
-                    alt.Tooltip("COUNT_NON_VALI_daily_reward_greater_UID_152:Q", title="COUNT NON VALI > UID_152"),
-                    alt.Tooltip("COUNT_NON_IMMUNE_daily_reward_less_UID_155:Q", title="COUNT NON IMMUNE < UID_155"),
-                    alt.Tooltip("COUNT_NON_VALI_daily_reward_greater_UID_155:Q", title="COUNT NON VALI > UID_155")
-                ]
+                color=alt.Color(
+                    "Metric:N",
+                    title="Metric",
+                    scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
+                )
             )
 
+            # Add tooltips for UID 152
+            uid_152_tooltip = alt.Chart(melted_data).mark_point().encode(
+                x=alt.X("MAX_timestamp:T"),
+                y=alt.Y("Value:Q"),
+                tooltip=[
+                    alt.Tooltip("Metric:N", title="Metric"),
+                    alt.Tooltip("Value:Q", title="Reward Value"),
+                    alt.Tooltip("Safe 152:Q", title="Deregister Risk"),
+                    alt.Tooltip("Rank 152:Q", title="Miner Rank"),
+                ]
+            ).transform_filter(
+                alt.datum.Metric == "UID 152"
+            )
+
+            # Add tooltips for UID 155
+            uid_155_tooltip = alt.Chart(melted_data).mark_point().encode(
+                x=alt.X("MAX_timestamp:T"),
+                y=alt.Y("Value:Q"),
+                tooltip=[
+                    alt.Tooltip("Metric:N", title="Metric"),
+                    alt.Tooltip("Value:Q", title="Reward Value"),
+                    alt.Tooltip("Safe 155:Q", title="Deregister Risk"),
+                    alt.Tooltip("Rank 155:Q", title="Miner Rank"),
+                ]
+            ).transform_filter(
+                alt.datum.Metric == "UID 155"
+            )
+
+            # Add tooltips for UID 236
+            uid_236_tooltip = alt.Chart(melted_data).mark_point().encode(
+                x=alt.X("MAX_timestamp:T"),
+                y=alt.Y("Value:Q"),
+                tooltip=[
+                    alt.Tooltip("Metric:N", title="Metric"),
+                    alt.Tooltip("Value:Q", title="Reward Value"),
+                    alt.Tooltip("Safe 236:Q", title="Deregister Risk"),
+                    alt.Tooltip("Rank 236:Q", title="Miner Rank"),
+                ]
+            ).transform_filter(
+                alt.datum.Metric == "UID 236"
+            )
+
+            # Combine the charts
+            combined_chart = base_chart + uid_152_tooltip + uid_155_tooltip + uid_236_tooltip
+
             # Render the chart in Streamlit
-            st.altair_chart(base_chart.properties(width=800, height=400).interactive(), use_container_width=True)
+            st.altair_chart(combined_chart.properties(width=800, height=400).interactive(), use_container_width=True)
+
 
 # Background updater every 3 minutes
 def background_updater():
