@@ -3,4 +3,4 @@ pandas
 requests
 altair
 python-dateutil
-pymongo[srv]==3.11
+pymongo
