@@ -38,50 +38,6 @@ def fetch_sn45_data():
         return None
 
 # Function to process data and save to rank_sn45 collection
-# def process_and_save_rank_sn45(data):
-#     # Ensure the data is valid
-#     if not data:
-#         return
-
-#     # Convert API data into a DataFrame
-#     df = pd.DataFrame(data)
-
-#     # Parse and reformat the timestamp column
-#     try:
-#         df["timestamp"] = df["timestamp"].apply(lambda ts: parser.isoparse(ts))
-#     except Exception as e:
-#         st.warning(f"Failed to parse timestamps: {e}")
-#         return
-
-#     # Group by block_number and timestamp for calculations
-#     unique_blocks = df.groupby(["block_number", "timestamp"])
-#     processed_data = []
-
-#     for (block, timestamp), group in unique_blocks:
-#         try:
-#             processed_data.append({
-#                 "MAX_netuid": int(group["netuid"].max()),
-#                 "MAX_block_number": int(group["block_number"].max()),
-#                 "MAX_timestamp": timestamp,
-#                 "MIN_daily_reward": float(group["daily_reward"].astype(float).min()),
-#                 "MIN_NON_IMMUNE_daily_reward": float(group[~group["is_immunity_period"]]["daily_reward"].astype(float).min()) if not group[~group["is_immunity_period"]].empty else None,
-#                 "UID_152_daily_reward": float(group[group["uid"] == 152]["daily_reward"].values[0]) if not group[group["uid"] == 152].empty else None,
-#                 "UID_155_daily_reward": float(group[group["uid"] == 155]["daily_reward"].values[0]) if not group[group["uid"] == 155].empty else None,
-#                 "MAX_NON_VALI_daily_reward": float(group[group["validator_trust"] == "0"]["daily_reward"].astype(float).max()) if not group[group["validator_trust"] == "0"].empty else None,
-#                 "COUNT_NON_IMMUNE_daily_reward_less_UID_152": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 152]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 152].empty else 0,
-#                 "COUNT_NON_IMMUNE_daily_reward_less_UID_155": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 155]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 155].empty else 0,
-#                 "COUNT_NON_VALI_daily_reward_greater_UID_152": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 152]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 152].empty else 0,
-#                 "COUNT_NON_VALI_daily_reward_greater_UID_155": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 155]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 155].empty else 0,
-#             })
-
-#         except KeyError as e:
-#             st.warning(f"Missing data for block {block}, timestamp {timestamp}: {e}")
-#             continue
-
-#     # Replace the RANK_SN_45 collection with the new data
-#     rank_collection.delete_many({})
-#     rank_collection.insert_many(processed_data)
-
 def process_and_save_rank_sn45(data):
     # Ensure the data is valid
     if not data:
