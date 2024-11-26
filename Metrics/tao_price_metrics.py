@@ -42,7 +42,7 @@ def fetch_tao_data():
             st.error("No data found in the API response.")
             return None
     except requests.exceptions.RequestException as e:
-        st.error(f"Failed to fetch data: {e}")
+        st.error(f"Failed to fetch Tao data: {e}")
         return None
 
 

@@ -13,12 +13,19 @@ def fetch_combined_metrics():
     sn30_metrics = display_account_sn30(return_data=True)
 
     # Combine the metrics
+    # combined_metrics = {
+    #     "free_balance": sn45_metrics["free_balance"] + sn30_metrics["free_balance"],
+    #     "staked_balance": sn45_metrics["staked_balance"] + sn30_metrics["staked_balance"],
+    #     "total_balance": sn45_metrics["total_balance"] + sn30_metrics["total_balance"],
+    #     "daily_reward": sn45_metrics["daily_reward"] + sn30_metrics["daily_reward"],
+    #     "price": tao_data["price"],
+    # }
     combined_metrics = {
-        "free_balance": sn45_metrics["free_balance"] + sn30_metrics["free_balance"],
-        "staked_balance": sn45_metrics["staked_balance"] + sn30_metrics["staked_balance"],
-        "total_balance": sn45_metrics["total_balance"] + sn30_metrics["total_balance"],
-        "daily_reward": sn45_metrics["daily_reward"] + sn30_metrics["daily_reward"],
-        "price": tao_data["price"],
+        "free_balance": float(sn45_metrics["free_balance"]) + float(sn30_metrics["free_balance"]),
+        "staked_balance": float(sn45_metrics["staked_balance"]) + float(sn30_metrics["staked_balance"]),
+        "total_balance": float(sn45_metrics["total_balance"]) + float(sn30_metrics["total_balance"]),
+        "daily_reward": float(sn45_metrics["daily_reward"]) + float(sn30_metrics["daily_reward"]),
+        "price": float(tao_data["price"]),
     }
 
     return combined_metrics
