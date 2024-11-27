@@ -9,272 +9,316 @@ from threading import Timer
 
 # MongoDB Configuration
 MONGO_URI = st.secrets["DB_URI"]
-DB_NAME = "sn45_database"
-RANK_COLLECTION = "rank_sn30_MongoNEW"
+DB_NAME = "sn30_database"
 
 # Connect to MongoDB
 client = pymongo.MongoClient(MONGO_URI)
 db = client[DB_NAME]
-rank_collection = db[RANK_COLLECTION]
 
-# Function to fetch API data
+# API Configuration
+API_URL = 'https://api.taostats.io/api/metagraph/latest/v1'
+API_HEADERS = {
+    'Authorization': st.secrets["API_TAO_30"],
+    #'Authorization': 'oMsSsdmi9ILQpk3Cokql3C0VPsutpKoy4O2y3RrhNn2qOxJcha7E1RbR2LTnI4E0',
+    'accept': 'application/json'
+}
+
+# UIDs to track
+UIDS = [254, 101, 85, 5, 34]  # Add more UIDs as needed
+
+# Fetch API data
 def fetch_sn30_data():
-    url = 'https://api.taostats.io/api/metagraph/latest/v1'
-    headers = {
-        'Authorization': st.secrets["API_TAO_30"],
-        'accept': 'application/json'
-    }
-    params = {
-        'netuid': 30,
-        'order': 'emission_desc'
-    }
-
+    params = {'netuid': 30, 'order': 'emission_desc'}
     try:
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(API_URL, headers=API_HEADERS, params=params)
         response.raise_for_status()
         return response.json()["data"]
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to fetch data: {e}")
         return None
 
-def process_and_save_rank_sn30(data):
-    # Ensure the data is valid
+
+# Process and save data for a specific UID, including additional metrics
+def process_and_save_uid_data(uid, data):
     if not data:
         return
 
-    # Convert API data into a DataFrame
+    # Convert data into DataFrame
     df = pd.DataFrame(data)
 
-    # Parse and reformat the timestamp column
+    # Parse and reformat timestamps
     try:
         df["timestamp"] = df["timestamp"].apply(lambda ts: parser.isoparse(ts))
     except Exception as e:
         st.warning(f"Failed to parse timestamps: {e}")
         return
 
-    # Group by block_number and timestamp for calculations
-    unique_blocks = df.groupby(["block_number", "timestamp"])
+    # Ensure data types are consistent
+    df["validator_trust"] = df["validator_trust"].astype(str)
+    df["daily_reward"] = df["daily_reward"].astype(float)
+
+    # Filter data for the given UID
+    uid_data = df[df["uid"] == uid]
+
+    if uid_data.empty:
+        st.warning(f"No data found for UID {uid}")
+        return
+
+    # Group by block and timestamp for calculations
+    grouped = df.groupby(["block_number", "timestamp"])
     processed_data = []
 
-    for (block, timestamp), group in unique_blocks:
+    for (block, timestamp), group in grouped:
         try:
-            processed_data.append({
-                "MAX_netuid": int(group["netuid"].max()),
-                "MAX_block_number": int(group["block_number"].max()),
+            daily_reward = group["daily_reward"]
+            is_immunity_period = group["is_immunity_period"]
+            validator_trust = group["validator_trust"]
+
+            # Ensure the UID exists in the group for comparison
+            uid_reward = uid_data["daily_reward"].max() if not uid_data.empty else None
+
+            # Perform the required calculations
+            record = {
+                "UID": uid,
+                "MAX_block_number": int(block),
                 "MAX_timestamp": timestamp,
-                "MIN_daily_reward": float(group["daily_reward"].astype(float).min()),
-                "MIN_NON_IMMUNE_daily_reward": float(group[~group["is_immunity_period"]]["daily_reward"].astype(float).min()) if not group[~group["is_immunity_period"]].empty else None,
-                "UID_85_daily_reward": float(group[group["uid"] == 85]["daily_reward"].values[0]) if not group[group["uid"] == 85].empty else None,
-                "UID_254_daily_reward": float(group[group["uid"] == 254]["daily_reward"].values[0]) if not group[group["uid"] == 254].empty else None,
-                "UID_34_daily_reward": float(group[group["uid"] == 34]["daily_reward"].values[0]) if not group[group["uid"] == 34].empty else None,
-                "UID_5_daily_reward": float(group[group["uid"] == 5]["daily_reward"].values[0]) if not group[group["uid"] == 5].empty else None,
-                "UID_101_daily_reward": float(group[group["uid"] == 101]["daily_reward"].values[0]) if not group[group["uid"] == 101].empty else None,
-                "MAX_NON_VALI_daily_reward": float(group[group["validator_trust"] == "0"]["daily_reward"].astype(float).max()) if not group[group["validator_trust"] == "0"].empty else None,
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_85": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 85]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 85].empty else 0,
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_254": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 254]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 254].empty else 0,
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_34": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 34]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 34].empty else 0,
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_5": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 5]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 5].empty else 0,
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_101": int(len(group[~group["is_immunity_period"] & (group["daily_reward"].astype(float) < group[group["uid"] == 101]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 101].empty else 0,
-                "COUNT_NON_VALI_daily_reward_greater_UID_85": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 85]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 85].empty else 0,
-                "COUNT_NON_VALI_daily_reward_greater_UID_254": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 254]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 254].empty else 0,
-                "COUNT_NON_VALI_daily_reward_greater_UID_34": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 34]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 34].empty else 0,
-                "COUNT_NON_VALI_daily_reward_greater_UID_5": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 5]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 5].empty else 0,
-                "COUNT_NON_VALI_daily_reward_greater_UID_101": int(len(group[(group["validator_trust"] == "0") & (group["daily_reward"].astype(float) > group[group["uid"] == 101]["daily_reward"].astype(float).values[0])])) if not group[group["uid"] == 101].empty else 0,
-            })
+                "DAILY_REWARD": float(uid_data["daily_reward"].max()),
+                "IS_IMMUNE": bool(uid_data["is_immunity_period"].any()),
+                "MIN_daily_reward": daily_reward.min(),
+                "MIN_NON_IMMUNE_daily_reward": daily_reward[~is_immunity_period].min()
+                if not daily_reward[~is_immunity_period].empty else None,
+                "MAX_NON_VALI_daily_reward": daily_reward[validator_trust == "0"].max()
+                if not daily_reward[validator_trust == "0"].empty else None,
+                "COUNT_NON_VALI_daily_reward_greater_UID": int(
+                    len(group[(validator_trust == "0") & (daily_reward > uid_reward)])
+                ) if uid_reward else 0,
+                "COUNT_NON_IMMUNE_daily_reward_less_UID": int(
+                    len(group[~is_immunity_period & (daily_reward < uid_reward)])
+                ) if uid_reward else 0
+            }
+            processed_data.append(record)
         except KeyError as e:
             st.warning(f"Missing data for block {block}, timestamp {timestamp}: {e}")
             continue
 
-    # Append new data to the RANK_SN_45 collection
+    # Save data to MongoDB
+    collection_name = f"rank_sn30_UID_{uid}"
+    uid_collection = db[collection_name]
+
     for record in processed_data:
-        if not rank_collection.find_one({
+        if not uid_collection.find_one({
             "MAX_block_number": record["MAX_block_number"],
             "MAX_timestamp": record["MAX_timestamp"]
         }):
-            rank_collection.insert_one(record)
+            uid_collection.insert_one(record)
+
+def create_unique_combination_df():
+    combined_data = []
+
+    # Collect data from all UID collections
+    for uid in UIDS:
+        collection_name = f"rank_sn30_UID_{uid}"
+        uid_collection = db[collection_name]
+        data = list(uid_collection.find())
+
+        if data:
+            # Convert data to a DataFrame
+            df = pd.DataFrame(data)
+
+            # Keep only unique combination columns
+            df = df[["MAX_timestamp", "MIN_daily_reward", "MIN_NON_IMMUNE_daily_reward", "MAX_NON_VALI_daily_reward"]]
+            combined_data.append(df)
+
+    if combined_data:
+        combined_df = pd.concat(combined_data).drop_duplicates(subset=["MAX_timestamp"])
+        combined_df["MAX_timestamp"] = pd.to_datetime(combined_df["MAX_timestamp"])
+        return combined_df
+    else:
+        st.warning("No unique combination data available.")
+        return pd.DataFrame()
 
 
+def create_rewards_df():
+    rewards_data = []
 
-# Function to plot rank chart
-def plot_rank_chart():
-    data = list(rank_collection.find())
-    if data:
-        df = pd.DataFrame(data)
+    # Collect data from all UID collections
+    for uid in UIDS:
+        collection_name = f"rank_sn30_UID_{uid}"
+        uid_collection = db[collection_name]
+        data = list(uid_collection.find())
 
-        if not df.empty:
-            # Convert MAX_timestamp to datetime if not already
+        if data:
+            # Convert data to a DataFrame
+            df = pd.DataFrame(data)
+
+            # Rename the DAILY_REWARD column to be specific for this UID
+            df.rename(columns={"DAILY_REWARD": f"Rewards_UID{uid}"}, inplace=True)
+
+            # Keep only relevant columns
+            df = df[["MAX_timestamp", f"Rewards_UID{uid}"]]
             df["MAX_timestamp"] = pd.to_datetime(df["MAX_timestamp"])
+            rewards_data.append(df)
 
-            # Divide the daily amounts by 1,000,000,000 for scaling
-            df["MIN_daily_reward"] /= 1_000_000_000
-            df["MIN_NON_IMMUNE_daily_reward"] /= 1_000_000_000
-            df["UID_85_daily_reward"] /= 1_000_000_000
-            df["UID_254_daily_reward"] /= 1_000_000_000
-            df["UID_34_daily_reward"] /= 1_000_000_000
-            df["UID_5_daily_reward"] /= 1_000_000_000
-            df["UID_101_daily_reward"] /= 1_000_000_000
-            df["MAX_NON_VALI_daily_reward"] /= 1_000_000_000
+    if rewards_data:
+        # Merge all UID-specific DataFrames on MAX_timestamp
+        rewards_df = rewards_data[0]
+        for df in rewards_data[1:]:
+            rewards_df = pd.merge(rewards_df, df, on="MAX_timestamp", how="outer")
 
-            # Rename columns for better display
-            rename_mapping = {
-                "MIN_daily_reward": "Min UID",
-                "MIN_NON_IMMUNE_daily_reward": "Min Non-Immune",
-                "UID_85_daily_reward": "UID 85",
-                "UID_254_daily_reward": "UID 254",
-                "UID_34_daily_reward": "UID 34",
-                "UID_5_daily_reward": "UID 5",
-                "UID_101_daily_reward": "UID 101",
-                "MAX_NON_VALI_daily_reward": "Max UID",
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_85": "Safe 85",
-                "COUNT_NON_VALI_daily_reward_greater_UID_85": "Rank 85",
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_254": "Safe 254",
-                "COUNT_NON_VALI_daily_reward_greater_UID_254": "Rank 254",
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_34": "Safe 34",
-                "COUNT_NON_VALI_daily_reward_greater_UID_34": "Rank 34",
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_5": "Safe 5",
-                "COUNT_NON_VALI_daily_reward_greater_UID_5": "Rank 5",
-                "COUNT_NON_IMMUNE_daily_reward_less_UID_101": "Safe 101",
-                "COUNT_NON_VALI_daily_reward_greater_UID_101": "Rank 101",
-            }
+        return rewards_df
+    else:
+        st.warning("No rewards data available.")
+        return pd.DataFrame()
 
-            df.rename(columns=rename_mapping, inplace=True)
 
-            # Melt the data for Altair (long format for multiple lines)
-            melted_data = df.melt(
-                id_vars=[
-                    "MAX_timestamp",
-                    "Safe 85",
-                    "Rank 85",
-                    "Safe 254",
-                    "Rank 254",
-                    "Safe 34",
-                    "Rank 34",
-                    "Safe 5",
-                    "Rank 5",
-                    "Safe 101",
-                    "Rank 101"
-                ],
-                value_vars=[
-                    "Min UID",
-                    "Min Non-Immune",
-                    "UID 85",
-                    "UID 254",
-                    "UID 34",
-                    "UID 5",
-                    "UID 101",
-                    "Max UID"
-                ],
-                var_name="Metric",
-                value_name="Value"
+def create_rank_risk_df():
+    rank_risk_data = []
+
+    # Collect data from all UID collections
+    for uid in UIDS:
+        collection_name = f"rank_sn30_UID_{uid}"
+        uid_collection = db[collection_name]
+        data = list(uid_collection.find())
+
+        if data:
+            # Convert data to a DataFrame
+            df = pd.DataFrame(data)
+
+            # Rename columns to include UID
+            df.rename(
+                columns={
+                    "COUNT_NON_VALI_daily_reward_greater_UID": f"Miner_Rank_UID{uid}",
+                    "COUNT_NON_IMMUNE_daily_reward_less_UID": f"Deregister_Risk_UID{uid}",
+                },
+                inplace=True,
             )
 
-            # Define custom colors for each metric
-            custom_colors = {
-                "Min UID": "#ff7f0e",  # Orange
-                "Min Non-Immune": "#d62728",  # Red
-                "UID 85": "#228B22",  # Green
-                "UID 254": "#228B22",  # Green
-                "UID 34": "#228B22",  # Green
-                "UID 5": "#228B22",  # Green
-                "UID 101": "#228B22",  # Green
-                "Max UID": "#1f77b4",  # Blue
-            }
+            # Keep only relevant columns
+            df = df[["MAX_timestamp", f"Miner_Rank_UID{uid}", f"Deregister_Risk_UID{uid}"]]
+            df["MAX_timestamp"] = pd.to_datetime(df["MAX_timestamp"])
+            rank_risk_data.append(df)
 
-            # Base line chart for all metrics
-            base_chart = alt.Chart(melted_data).mark_line(point=True).encode(
-                x=alt.X("MAX_timestamp:T", title="Timestamp"),
-                y=alt.Y("Value:Q", title="Rewards"),
-                color=alt.Color(
-                    "Metric:N",
-                    title="Metric",
-                    scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
-                )
-            )
+    if rank_risk_data:
+        # Merge all UID-specific DataFrames on MAX_timestamp
+        rank_risk_df = rank_risk_data[0]
+        for df in rank_risk_data[1:]:
+            rank_risk_df = pd.merge(rank_risk_df, df, on="MAX_timestamp", how="outer")
 
-            # Add tooltips for UID 85
-            uid_85_tooltip = alt.Chart(melted_data).mark_point().encode(
-                x=alt.X("MAX_timestamp:T"),
-                y=alt.Y("Value:Q"),
-                tooltip=[
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("Safe 85:Q", title="Deregister Risk"),
-                    alt.Tooltip("Rank 85:Q", title="Miner Rank"),
-                ]
-            ).transform_filter(
-                alt.datum.Metric == "UID 85"
-            )
-
-            # Add tooltips for UID 254
-            uid_254_tooltip = alt.Chart(melted_data).mark_point().encode(
-                x=alt.X("MAX_timestamp:T"),
-                y=alt.Y("Value:Q"),
-                tooltip=[
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("Safe 254:Q", title="Deregister Risk"),
-                    alt.Tooltip("Rank 254:Q", title="Miner Rank"),
-                ]
-            ).transform_filter(
-                alt.datum.Metric == "UID 254"
-            )
-
-            # Add tooltips for UID 34
-            uid_34_tooltip = alt.Chart(melted_data).mark_point().encode(
-                x=alt.X("MAX_timestamp:T"),
-                y=alt.Y("Value:Q"),
-                tooltip=[
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("Safe 34:Q", title="Deregister Risk"),
-                    alt.Tooltip("Rank 34:Q", title="Miner Rank"),
-                ]
-            ).transform_filter(
-                alt.datum.Metric == "UID 34"
-            )
-
-                        # Add tooltips for UID 5
-            uid_5_tooltip = alt.Chart(melted_data).mark_point().encode(
-                x=alt.X("MAX_timestamp:T"),
-                y=alt.Y("Value:Q"),
-                tooltip=[
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("Safe 5:Q", title="Deregister Risk"),
-                    alt.Tooltip("Rank 5:Q", title="Miner Rank"),
-                ]
-            ).transform_filter(
-                alt.datum.Metric == "UID 5"
-            )
-
-            # Add tooltips for UID 101
-            uid_101_tooltip = alt.Chart(melted_data).mark_point().encode(
-                x=alt.X("MAX_timestamp:T"),
-                y=alt.Y("Value:Q"),
-                tooltip=[
-                    alt.Tooltip("Metric:N", title="Metric"),
-                    alt.Tooltip("Value:Q", title="Reward Value"),
-                    alt.Tooltip("Safe 101:Q", title="Deregister Risk"),
-                    alt.Tooltip("Rank 101:Q", title="Miner Rank"),
-                ]
-            ).transform_filter(
-                alt.datum.Metric == "UID 101"
-            )
-
-            # Combine the charts
-            combined_chart = base_chart + uid_85_tooltip + uid_254_tooltip + uid_34_tooltip + uid_5_tooltip + uid_101_tooltip
-
-            # Render the chart in Streamlit
-            st.altair_chart(combined_chart.properties(width=800, height=400).interactive(), use_container_width=True)
+        return rank_risk_df
+    else:
+        st.warning("No rank and risk data available.")
+        return pd.DataFrame()
 
 
-# Background updater every 3 minutes
+def create_combined_df():
+    unique_df = create_unique_combination_df()
+    rewards_df = create_rewards_df()
+    rank_risk_df = create_rank_risk_df()
+
+    # Ensure all timestamps are in the same format
+    if not unique_df.empty:
+        unique_df["MAX_timestamp"] = pd.to_datetime(unique_df["MAX_timestamp"])
+    if not rewards_df.empty:
+        rewards_df["MAX_timestamp"] = pd.to_datetime(rewards_df["MAX_timestamp"])
+    if not rank_risk_df.empty:
+        rank_risk_df["MAX_timestamp"] = pd.to_datetime(rank_risk_df["MAX_timestamp"])
+
+    # Merge the DataFrames
+    if not unique_df.empty and not rewards_df.empty and not rank_risk_df.empty:
+        combined_df = pd.merge(unique_df, rewards_df, on="MAX_timestamp", how="outer")
+        combined_df = pd.merge(combined_df, rank_risk_df, on="MAX_timestamp", how="outer")
+        return combined_df
+    else:
+        st.warning("No data available to combine.")
+        return pd.DataFrame()
+
+
+
+def prepare_chart_data(combined_df):
+    if combined_df.empty:
+        return pd.DataFrame()
+
+    # Scale values for better readability
+    for column in combined_df.columns:
+        if column not in ["MAX_timestamp"]:
+            combined_df[column] /= 1_000_000_000
+
+    # Melt the DataFrame for Altair
+    melted_df = combined_df.melt(
+        id_vars=["MAX_timestamp"],
+        var_name="Metric",
+        value_name="Value"
+    )
+
+    return melted_df
+
+
+def generate_chart(melted_df, combined_df):
+    if melted_df.empty:
+        st.warning("No data available to plot.")
+        return
+
+    # Define custom colors for key metrics
+    custom_colors = {
+        "MIN_daily_reward": "#ff7f0e",  # Orange
+        "MIN_NON_IMMUNE_daily_reward": "#d62728",  # Red
+        "MAX_NON_VALI_daily_reward": "#1f77b4",  # Blue
+    }
+    # Add UID-specific colors dynamically
+    uid_columns = [col for col in melted_df["Metric"].unique() if "Rewards_UID" in col]
+    custom_colors.update({uid: "#228B22" for uid in uid_columns})
+
+    # Dynamically add tooltips for Miner Rank and Deregister Risk
+    rank_risk_columns = [
+        col for col in combined_df.columns if "Miner_Rank_UID" in col or "Deregister_Risk_UID" in col
+    ]
+    tooltip_list = [
+        alt.Tooltip("MAX_timestamp:T", title="Timestamp"),
+        alt.Tooltip("Metric:N", title="Metric"),
+        alt.Tooltip("Value:Q", title="Value"),
+    ]
+    for column in rank_risk_columns:
+        tooltip_list.append(alt.Tooltip(column + ":Q", title=column))
+
+    # Create the chart
+    chart = alt.Chart(melted_df).mark_line(point=True, interpolate="linear").encode(
+        x=alt.X("MAX_timestamp:T", title="Timestamp"),
+        y=alt.Y("Value:Q", title="Rewards (in billions)"),
+        color=alt.Color(
+            "Metric:N",
+            title="Metric",
+            scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
+        ),
+        tooltip=tooltip_list
+    ).properties(
+        width=800,
+        height=400
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+
+
+# Background updater for all UIDs
 def background_updater():
     data = fetch_sn30_data()
-    process_and_save_rank_sn30(data)
+    for uid in UIDS:
+        process_and_save_uid_data(uid, data)
     Timer(1080, background_updater).start()
 
-# Display in Streamlit
+
+
+
+# Display data for all UIDs
 def display_sn30_rank_mongo():
     background_updater()
-    plot_rank_chart()
+    
+    # Create the combined DataFrame
+    combined_df = create_combined_df()
+
+    # Prepare the data for plotting
+    melted_df = prepare_chart_data(combined_df)
+
+    # Generate and display the chart
+    st.subheader("Rank")
+    generate_chart(melted_df, combined_df)

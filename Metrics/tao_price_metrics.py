@@ -1,28 +1,6 @@
 import requests
 import streamlit as st
 
-
-# Function to fetch Tao Price data from the API
-# def fetch_tao_data():
-#     api_url = "https://api.taostats.io/api/price/latest/v1?asset=tao"
-#     headers = {
-#         'Authorization': st.secrets["API_TAO"],
-#         'accept': 'application/json'
-#     }
-
-#     try:
-#         response = requests.get(api_url, headers=headers)
-#         response.raise_for_status()
-#         data = response.json()
-#         if 'data' in data and len(data['data']) > 0:
-#             return data['data'][0]  # Return the first element in the data list
-#         else:
-#             st.error("No data found in the API response.")
-#             return None
-#     except requests.exceptions.RequestException as e:
-#         st.error(f"Failed to fetch data: {e}")
-#         return None
-
 def fetch_tao_data():
     api_url = "https://api.taostats.io/api/price/latest/v1?asset=tao"
     headers = {

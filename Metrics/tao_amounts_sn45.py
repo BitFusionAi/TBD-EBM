@@ -97,7 +97,7 @@ def display_account_sn45(return_data=False):
 
     if sn45_incentive:
         sn45_df = pd.DataFrame(sn45_incentive)
-        selected_uids = [152, 155, 236]
+        selected_uids = [152, 155, 236, 53]
         filtered_data = sn45_df[sn45_df["uid"].isin(selected_uids)]
 
         if not filtered_data.empty:
