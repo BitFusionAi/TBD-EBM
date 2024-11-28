@@ -30,59 +30,6 @@ tao_data = fetch_tao_data()
 sn45_incentive = fetch_sn45_data()
 
 # Function to display the Account Metrics
-# def display_account_sn45():
-#     account_data = fetch_account_data()
-#     if account_data:
-#         # Display balance metrics
-#         col1, col2, col3, col4 = st.columns(4)
-
-#         with col1:
-#             st.metric(
-#                 label="Free Balance",
-#                 value=f"{int(account_data['balance_free'])/1000000000:,.3} 𝜏",
-#                 delta=f"${float(account_data['balance_free'])*float(tao_data['price'])/1000000000:,.2f}"
-#             )
-        
-#         with col2:
-#             st.metric(
-#                 label="Staked Balance",
-#                 value=f"{int(account_data['balance_staked'])/1000000000:,.3} 𝜏",
-#                 delta=f"${float(account_data['balance_staked'])*float(tao_data['price'])/1000000000:,.2f}"
-#             )
-        
-#         with col3:
-#             st.metric(
-#                 label="Total Balance",
-#                 value=f"{int(account_data['balance_total'])/1000000000:,.3} 𝜏",
-#                 delta=f"${float(account_data['balance_total'])*float(tao_data['price'])/1000000000:,.2f}"
-#             )
-
-#         if sn45_incentive:
-#             # Convert to DataFrame for easier filtering
-#             sn45_df = pd.DataFrame(sn45_incentive)
-
-#             # Filter for UIDs 152, 155, and 236
-#             selected_uids = [152, 155, 236]
-#             filtered_data = sn45_df[sn45_df["uid"].isin(selected_uids)]
-
-#             if not filtered_data.empty:
-#                 # Sum the daily_reward for the selected UIDs
-#                 total_daily_reward = filtered_data["daily_reward"].astype(float).sum() / 1000000000
-#                 staked_value = total_daily_reward * float(tao_data["price"])
-
-#                 with col4:
-#                     st.metric(
-#                         label="Total Daily Reward",
-#                         value=f"{total_daily_reward:,.3} 𝜏",
-#                         delta=f"${staked_value:,.2f}/day"
-#                     )
-#             else:
-#                 with col4:
-#                     st.metric(label="Total Daily Reward", value="No Data", delta="N/A")
-#         else:
-#             with col4:
-#                 st.metric(label="Total Daily Reward", value="No Data", delta="N/A")
-
 
 def display_account_sn45(return_data=False):
     account_data = fetch_account_data()

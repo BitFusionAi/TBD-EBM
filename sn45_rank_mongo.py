@@ -114,75 +114,6 @@ def process_and_save_uid_data(uid, data):
 
 
 # Plot data for all UIDs
-# def plot_all_uids_chart():
-#     dataframes = []
-
-#     # Collect data from each UID collection
-#     for uid in UIDS:
-#         collection_name = f"rank_sn45_UID_{uid}"
-#         uid_collection = db[collection_name]
-#         data = list(uid_collection.find())
-
-#         if data:
-#             df = pd.DataFrame(data)
-#             df["MAX_timestamp"] = pd.to_datetime(df["MAX_timestamp"])
-#             df["UID"] = uid
-#             dataframes.append(df)
-
-#     # Combine all UID data into one DataFrame
-#     if dataframes:
-#         combined_df = pd.concat(dataframes)
-
-#         # Scale rewards for better display
-#         combined_df["DAILY_REWARD"] /= 1_000_000_000
-#         combined_df["MIN_daily_reward"] /= 1_000_000_000
-#         combined_df["MIN_NON_IMMUNE_daily_reward"] /= 1_000_000_000
-#         combined_df["MAX_NON_VALI_daily_reward"] /= 1_000_000_000
-
-#         # Melt the DataFrame for Altair
-#         melted_df = combined_df.melt(
-#             id_vars=["MAX_timestamp"],
-#             value_vars=[
-#                 "MIN_daily_reward",
-#                 "MIN_NON_IMMUNE_daily_reward",
-#                 "DAILY_REWARD",
-#                 "MAX_NON_VALI_daily_reward"
-#             ],
-#             var_name="Metric",
-#             value_name="Value"
-#         )
-
-#         # Assign colors to metrics
-#         custom_colors = {
-#             "MIN_daily_reward": "#ff7f0e",  # Orange
-#             "MIN_NON_IMMUNE_daily_reward": "#d62728",  # Red
-#             "DAILY_REWARD": "#228B22",  # Green (each UID will be labeled in the tooltip)
-#             "MAX_NON_VALI_daily_reward": "#1f77b4",  # Blue
-#         }
-
-#         # Define the chart
-#         chart = alt.Chart(melted_df).mark_line(point=True).encode(
-#             x=alt.X("MAX_timestamp:T", title="Timestamp"),
-#             y=alt.Y("Value:Q", title="Rewards"),
-#             color=alt.Color(
-#                 "Metric:N",
-#                 title="Metric",
-#                 scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
-#             ),
-#             tooltip=[
-#                 alt.Tooltip("MAX_timestamp:T", title="Timestamp"),
-#                 alt.Tooltip("Metric:N", title="Metric"),
-#                 alt.Tooltip("Value:Q", title="Value"),
-#             ]
-#         ).properties(
-#             width=800,
-#             height=400
-#         )
-
-#         st.altair_chart(chart, use_container_width=True)
-#     else:
-#         st.warning("No data available to plot.")
-
 
 def create_unique_combination_df():
     combined_data = []
@@ -199,6 +130,14 @@ def create_unique_combination_df():
 
             # Keep only unique combination columns
             df = df[["MAX_timestamp", "MIN_daily_reward", "MIN_NON_IMMUNE_daily_reward", "MAX_NON_VALI_daily_reward"]]
+            df.rename(
+                columns={
+                    "MIN_daily_reward": f"Min Miner",
+                    "MIN_NON_IMMUNE_daily_reward": f"Min Non-Immune",
+                    "MAX_NON_VALI_daily_reward": f"Max Miner",
+                },
+                inplace=True,
+            )
             combined_data.append(df)
 
     if combined_data:
@@ -224,10 +163,10 @@ def create_rewards_df():
             df = pd.DataFrame(data)
 
             # Rename the DAILY_REWARD column to be specific for this UID
-            df.rename(columns={"DAILY_REWARD": f"Rewards_UID{uid}"}, inplace=True)
+            df.rename(columns={"DAILY_REWARD": f"UID {uid}"}, inplace=True)
 
             # Keep only relevant columns
-            df = df[["MAX_timestamp", f"Rewards_UID{uid}"]]
+            df = df[["MAX_timestamp", f"UID {uid}"]]
             df["MAX_timestamp"] = pd.to_datetime(df["MAX_timestamp"])
             rewards_data.append(df)
 
@@ -283,17 +222,6 @@ def create_rank_risk_df():
 
 
 
-# def create_combined_df():
-#     unique_df = create_unique_combination_df()
-#     rewards_df = create_rewards_df()
-
-#     if not unique_df.empty and not rewards_df.empty:
-#         combined_df = pd.merge(unique_df, rewards_df, on="MAX_timestamp", how="outer")
-#         return combined_df
-#     else:
-#         st.warning("No data available to combine.")
-#         return pd.DataFrame()
-
 def create_combined_df():
     unique_df = create_unique_combination_df()
     rewards_df = create_rewards_df()
@@ -317,19 +245,19 @@ def create_combined_df():
         return pd.DataFrame()
 
 
-
 def prepare_chart_data(combined_df):
     if combined_df.empty:
         return pd.DataFrame()
 
     # Scale values for better readability
     for column in combined_df.columns:
-        if column not in ["MAX_timestamp"]:
+        if column not in ["MAX_timestamp"] and not column.startswith("Miner_Rank_UID") and not column.startswith("Deregister_Risk_UID"):
             combined_df[column] /= 1_000_000_000
 
     # Melt the DataFrame for Altair
+    rank_risk_columns = [col for col in combined_df.columns if "Miner_Rank_UID" in col or "Deregister_Risk_UID" in col]
     melted_df = combined_df.melt(
-        id_vars=["MAX_timestamp"],
+        id_vars=["MAX_timestamp"] + rank_risk_columns,
         var_name="Metric",
         value_name="Value"
     )
@@ -337,86 +265,80 @@ def prepare_chart_data(combined_df):
     return melted_df
 
 
-
-# def generate_chart(melted_df):
-#     if melted_df.empty:
-#         st.warning("No data available to plot.")
-#         return
-
-#     # Define custom colors for key metrics
-#     custom_colors = {
-#         "MIN_daily_reward": "#ff7f0e",  # Orange
-#         "MIN_NON_IMMUNE_daily_reward": "#d62728",  # Red
-#         "MAX_NON_VALI_daily_reward": "#1f77b4",  # Blue
-#     }
-#     # Add UID-specific colors dynamically
-#     uid_columns = [col for col in melted_df["Metric"].unique() if "Rewards_UID" in col]
-#     custom_colors.update({uid: "#228B22" for uid in uid_columns})
-
-#     # Create the chart
-#     chart = alt.Chart(melted_df).mark_line(point=True, interpolate="linear").encode(
-#         x=alt.X("MAX_timestamp:T", title="Timestamp"),
-#         y=alt.Y("Value:Q", title="Rewards (in billions)"),
-#         color=alt.Color(
-#             "Metric:N",
-#             title="Metric",
-#             scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
-#         ),
-#         tooltip=[
-#             alt.Tooltip("MAX_timestamp:T", title="Timestamp"),
-#             alt.Tooltip("Metric:N", title="Metric"),
-#             alt.Tooltip("Value:Q", title="Value"),
-#         ]
-#     ).properties(
-#         width=800,
-#         height=400
-#     )
-
-#     st.altair_chart(chart, use_container_width=True)
-
-def generate_chart(melted_df, combined_df):
+def generate_chart(melted_df, combined_df, dynamic_uids):
+    # Ensure the DataFrame is not empty
     if melted_df.empty:
         st.warning("No data available to plot.")
         return
+    
 
     # Define custom colors for key metrics
     custom_colors = {
-        "MIN_daily_reward": "#ff7f0e",  # Orange
-        "MIN_NON_IMMUNE_daily_reward": "#d62728",  # Red
-        "MAX_NON_VALI_daily_reward": "#1f77b4",  # Blue
+        "Min Miner": "#ff7f0e",  # Orange
+        "Min Non-Immune": "#d62728",  # Red
+        "Max Miner": "transparent",  # Blue
     }
-    # Add UID-specific colors dynamically
-    uid_columns = [col for col in melted_df["Metric"].unique() if "Rewards_UID" in col]
-    custom_colors.update({uid: "#228B22" for uid in uid_columns})
 
-    # Dynamically add tooltips for Miner Rank and Deregister Risk
-    rank_risk_columns = [
-        col for col in combined_df.columns if "Miner_Rank_UID" in col or "Deregister_Risk_UID" in col
-    ]
-    tooltip_list = [
-        alt.Tooltip("MAX_timestamp:T", title="Timestamp"),
-        alt.Tooltip("Metric:N", title="Metric"),
-        alt.Tooltip("Value:Q", title="Value"),
-    ]
-    for column in rank_risk_columns:
-        tooltip_list.append(alt.Tooltip(column + ":Q", title=column))
+    light_colors = [
+        "#f0ead2",
+        "#656d4a",
+        "#adc178",
+        "#7f4f24",
+        "#582f0e",
+        "#5a189a",
+        "#9d4edd"
+        ]
+    
+    uid_colors = {
+        f"UID {uid}": light_colors[i % len(light_colors)] for i, uid in enumerate(dynamic_uids)
+    }
 
-    # Create the chart
-    chart = alt.Chart(melted_df).mark_line(point=True, interpolate="linear").encode(
+    # Combine the predefined colors and dynamically generated UID colors
+    custom_colors.update(uid_colors)
+
+    # Base line chart for all metrics
+    base_chart = alt.Chart(melted_df).mark_line(point=False).encode(
         x=alt.X("MAX_timestamp:T", title="Timestamp"),
-        y=alt.Y("Value:Q", title="Rewards (in billions)"),
+        y=alt.Y("Value:Q", title="Rewards"),
+        #color="Metric:N",
         color=alt.Color(
             "Metric:N",
             title="Metric",
             scale=alt.Scale(domain=list(custom_colors.keys()), range=list(custom_colors.values()))
+
         ),
-        tooltip=tooltip_list
-    ).properties(
-        width=800,
-        height=400
+        tooltip=[
+            alt.Tooltip("Metric:N", title="Metric"),
+            alt.Tooltip("Value:Q", title="Reward Value"),
+        ]
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    # Add tooltips dynamically for each UID
+    
+    uid_charts = []
+    for uid in dynamic_uids:
+        uid_chart = alt.Chart(melted_df).mark_point().encode(
+            x=alt.X("MAX_timestamp:T"),
+            y=alt.Y("Value:Q"),
+            color=alt.value("transparent"),  # Set a specific color for the point
+            tooltip=[
+                alt.Tooltip("Metric:N", title="Metric"),
+                alt.Tooltip("Value:Q", title="Reward Value"),
+                alt.Tooltip(f"Miner_Rank_UID{uid}:Q", title=f"Miner Rank"),
+                alt.Tooltip(f"Deregister_Risk_UID{uid}:Q", title=f"Deregister Risk"),
+            ]
+        ).transform_filter(
+            alt.datum.Metric == f"UID {uid}"
+        )
+        uid_charts.append(uid_chart)
+
+    # Combine the base chart with UID-specific tooltips
+    combined_chart = base_chart
+    for chart in uid_charts:
+        combined_chart += chart
+
+    # Render the chart in Streamlit
+    st.altair_chart(combined_chart.properties(width=1600, height=400).interactive(), use_container_width=True)
 
 
 
@@ -431,9 +353,16 @@ def background_updater():
 
 
 # Display data for all UIDs
+
 def display_sn45_rank_mongo():
-    background_updater()
+    # Fetch initial data
+    data = fetch_sn45_data()
+    for uid in UIDS:
+        process_and_save_uid_data(uid, data)
     
+    # Start the background updater asynchronously
+    Timer(1080, background_updater).start()
+
     # Create the combined DataFrame
     combined_df = create_combined_df()
 
@@ -441,5 +370,4 @@ def display_sn45_rank_mongo():
     melted_df = prepare_chart_data(combined_df)
 
     # Generate and display the chart
-    st.subheader("Rank")
-    generate_chart(melted_df, combined_df)
+    generate_chart(melted_df, combined_df, UIDS)
