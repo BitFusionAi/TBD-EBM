@@ -1,7 +1,7 @@
 import streamlit as st
 import pymongo
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import altair as alt
 from dateutil import parser
@@ -24,7 +24,7 @@ API_HEADERS = {
 }
 
 # UIDs to track
-UIDS = [254, 101, 85, 34, 5]  # Add more UIDs as needed
+UIDS = [254, 101, 85, 5, 34, 239]  # Add more UIDs as needed
 
 # Fetch API data
 def fetch_sn30_data():
@@ -116,13 +116,19 @@ def process_and_save_uid_data(uid, data):
 # Plot data for all UIDs
 
 def create_unique_combination_df():
+    
+    # Calculate the time threshold for filtering (48 hours ago) with timezone-aware datetime
+    #time_threshold = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    time_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
+    
     combined_data = []
 
     # Collect data from all UID collections
     for uid in UIDS:
         collection_name = f"rank_sn30_UID_{uid}"
         uid_collection = db[collection_name]
-        data = list(uid_collection.find())
+        data = list(uid_collection.find({"MAX_timestamp": {"$gte": time_threshold}}))
+        
 
         if data:
             # Convert data to a DataFrame
@@ -148,15 +154,19 @@ def create_unique_combination_df():
         st.warning("No unique combination data available.")
         return pd.DataFrame()
 
-
 def create_rewards_df():
+
+    # Calculate the time threshold for filtering (48 hours ago) with timezone-aware datetime
+    #time_threshold = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    time_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
+    
     rewards_data = []
 
     # Collect data from all UID collections
     for uid in UIDS:
         collection_name = f"rank_sn30_UID_{uid}"
         uid_collection = db[collection_name]
-        data = list(uid_collection.find())
+        data = list(uid_collection.find({"MAX_timestamp": {"$gte": time_threshold}}))
 
         if data:
             # Convert data to a DataFrame
@@ -181,15 +191,18 @@ def create_rewards_df():
         st.warning("No rewards data available.")
         return pd.DataFrame()
 
-
 def create_rank_risk_df():
     rank_risk_data = []
+
+    # Calculate the time threshold for filtering (48 hours ago) with timezone-aware datetime
+    #time_threshold = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    time_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
 
     # Collect data from all UID collections
     for uid in UIDS:
         collection_name = f"rank_sn30_UID_{uid}"
         uid_collection = db[collection_name]
-        data = list(uid_collection.find())
+        data = list(uid_collection.find({"MAX_timestamp": {"$gte": time_threshold}}))
 
         if data:
             # Convert data to a DataFrame
@@ -219,7 +232,6 @@ def create_rank_risk_df():
     else:
         st.warning("No rank and risk data available.")
         return pd.DataFrame()
-
 
 
 def create_combined_df():
@@ -342,6 +354,7 @@ def generate_chart(melted_df, combined_df, dynamic_uids):
 
 
 
+
 # Background updater for all UIDs
 def background_updater():
     data = fetch_sn30_data()
@@ -363,7 +376,7 @@ def display_sn30_rank_mongo():
     # Start the background updater asynchronously
     Timer(1080, background_updater).start()
 
-    # Create the combined DataFrame
+    # Create the combined DataFrame (only includes data from the last 48 hours)
     combined_df = create_combined_df()
 
     # Prepare the data for plotting
@@ -371,3 +384,4 @@ def display_sn30_rank_mongo():
 
     # Generate and display the chart
     generate_chart(melted_df, combined_df, UIDS)
+

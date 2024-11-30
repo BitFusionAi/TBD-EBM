@@ -26,9 +26,6 @@ def fetch_account_data(address):
         st.error(f"Failed to fetch data for address {address}: {e}")
         return None
 
-# Fetch Tao price and SN30 data
-tao_data = fetch_tao_data()
-sn30_incentive = fetch_sn30_data()
 
 # Addresses for SN30
 addresses = [
@@ -102,6 +99,10 @@ addresses = [
 #             st.metric(label="Total Daily Reward", value="No Data", delta="N/A")
 
 def display_account_sn30(return_data=False):
+    # Fetch Tao price and SN30 data
+    tao_data = fetch_tao_data()
+    sn30_incentive = fetch_sn30_data()
+
     total_free_balance = 0
     total_staked_balance = 0
     total_total_balance = 0

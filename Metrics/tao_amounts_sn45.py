@@ -26,12 +26,13 @@ def fetch_account_data():
         st.error(f"Failed to fetch data: {e}")
         return None
 
-tao_data = fetch_tao_data()
-sn45_incentive = fetch_sn45_data()
+
 
 # Function to display the Account Metrics
 
 def display_account_sn45(return_data=False):
+    tao_data = fetch_tao_data()
+    sn45_incentive = fetch_sn45_data()
     account_data = fetch_account_data()
     if not account_data:
         return None if return_data else st.error("Failed to fetch account data for SN45.")
