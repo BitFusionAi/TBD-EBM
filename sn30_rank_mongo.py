@@ -24,7 +24,7 @@ API_HEADERS = {
 }
 
 # UIDs to track
-UIDS = [254, 101, 85, 5, 34, 239]  # Add more UIDs as needed
+UIDS = [254, 85, 5, 34, 239]  # Add more UIDs as needed
 
 # Fetch API data
 def fetch_sn30_data():
